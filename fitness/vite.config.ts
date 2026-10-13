@@ -52,7 +52,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Separate long-lived chunks so app updates don't re-download React or the exercise library.
-        manualChunks: (id) => (id.includes('node_modules') ? 'vendor' : id.includes('/src/data/') ? 'data' : undefined),
+        manualChunks: process.env.FORGE_SINGLE_CHUNK ? undefined : (id) => (id.includes('node_modules') ? 'vendor' : id.includes('/src/data/') ? 'data' : undefined),
       },
     },
   },

@@ -19,9 +19,14 @@ export function useRoute() {
 
 export function navigate(to: string, opts: { replace?: boolean } = {}) {
   const depth = (history.state?.forgeDepth as number | undefined) ?? 0
-  if (opts.replace) history.replaceState({ forgeDepth: depth }, '', '#' + to)
-  else history.pushState({ forgeDepth: depth + 1 }, '', '#' + to)
-  window.dispatchEvent(new HashChangeEvent('hashchange'))
+  try {
+    if (opts.replace) history.replaceState({ forgeDepth: depth }, '', '#' + to)
+    else history.pushState({ forgeDepth: depth + 1 }, '', '#' + to)
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  } catch {
+    // Some embedded or sandboxed frames refuse the History API; plain hash changes still work.
+    window.location.hash = to
+  }
   window.scrollTo({ top: 0 })
 }
 
