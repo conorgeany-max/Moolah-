@@ -13,8 +13,8 @@ export const SESSION_INFO: Record<SessionType, { label: string; short: string; l
   rest: { label: 'Rest day', short: 'Rest', load: 0, hard: false, kind: 'rest' },
 }
 
-export function isRunSession(t: SessionType) {
-  return SESSION_INFO[t].kind === 'run'
+export function isRunSession(t: SessionType | string) {
+  return SESSION_INFO[t as SessionType]?.kind === 'run'
 }
 
 // ───────────── Weekly composition ─────────────
@@ -162,7 +162,7 @@ export function isDeloadWeek(p: Programme, week: number) {
 
 export function planFor(p: Programme, date: DayKey): DayPlan {
   const week = programmeWeek(p, date)
-  const inProgramme = week >= 1 && week <= p.weeks
+  const inProgramme = week >= 1 && week <= p.weeks && !(p.firstDay && date < p.firstDay)
   const o = p.overrides[date]
   const base = inProgramme ? (p.template[weekdayOf(date)] ?? 'rest') : 'rest'
   const type = o?.type ?? base

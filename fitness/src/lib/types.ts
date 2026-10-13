@@ -253,6 +253,8 @@ export interface Programme {
   id: string
   createdAt: string
   startDate: DayKey // Monday of week 1
+  /** The day the programme actually began. Earlier days in week 1 are not counted as missed. */
+  firstDay?: DayKey
   weeks: number
   template: Partial<Record<Weekday, SessionType>>
   deloadWeeks: number[]

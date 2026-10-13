@@ -430,7 +430,7 @@ function ExerciseView({
 
       <div className="pt-3 animate-rise">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge tone="accent">{step.isCircuit ? `Round ${step.setIndex + 1} of ${step.totalSets}` : `Set ${step.setIndex + 1} of ${step.totalSets}`}</Badge>
+          {step.totalSets > 1 && <Badge tone="accent">{step.isCircuit ? `Round ${step.setIndex + 1} of ${step.totalSets}` : `Set ${step.setIndex + 1} of ${step.totalSets}`}</Badge>}
           {ex.perSide && <Badge>Each side</Badge>}
           {x.originalExerciseId && <Badge tone="calm">Substituted</Badge>}
         </div>
@@ -568,6 +568,7 @@ function HoldTimer({ target, perSide, outdoor, onLog }: { target: number; perSid
     const secs = held
     setStartedAt(null)
     beeped.current = -1
+    if (secs < 1) return // stopped straight away: treat as a cancelled start, not a 0-second set
     if (perSide && side1 === null) {
       setSide1(secs)
       return

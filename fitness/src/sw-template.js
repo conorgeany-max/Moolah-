@@ -3,7 +3,8 @@ const CACHE = 'forge-__CACHE_VERSION__'
 const PRECACHE = __PRECACHE_FILES__
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)))
+  // cache: 'reload' bypasses the HTTP cache, so a stale index.html can never be paired with this version's assets.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })))))
 })
 
 self.addEventListener('activate', (event) => {

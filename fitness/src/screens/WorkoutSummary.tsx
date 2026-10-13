@@ -41,7 +41,7 @@ export function WorkoutSummary({ id }: { id: string }) {
 
       {(prs.length > 0 || firsts.length > 0) && (
         <section className="mt-6">
-          <SectionHeader title="Personal records" />
+          <SectionHeader title={prs.length ? 'Personal records' : 'Baselines set'} />
           <Card className="divide-y divide-line">
             {prs.map((r) => {
               const ex = getExercise(r.exerciseId)

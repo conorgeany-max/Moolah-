@@ -1,6 +1,6 @@
 import { TRACKS } from '../data/exercises'
 import { ROUTINE_MAP, type MobilityRoutine } from '../data/mobility'
-import { dayKey, mondayOf } from '../lib/date'
+import { dayKey, mondayOf, weekdayOf } from '../lib/date'
 import { clamp } from '../lib/format'
 import { uid } from '../lib/id'
 import type {
@@ -180,6 +180,8 @@ export function createProgramme(p: Profile, today: DayKey = dayKey(), carryOver?
   if (!p.environments.includes('bar'))
     rationale.push('Without a secure bar, pulling is trained with prone raises and pulldowns. These help, but cannot fully replace pulling against resistance.')
 
+  if (weekdayOf(today) !== 0 && !carryOver) rationale.push('Week 1 starts today, so sessions earlier this week are left out rather than counted as missed.')
+
   const slots = initialSlots(p)
   if (carryOver) {
     for (const [k, v] of Object.entries(carryOver.slots)) if (slots[k]) slots[k] = v
@@ -188,6 +190,7 @@ export function createProgramme(p: Profile, today: DayKey = dayKey(), carryOver?
     id: uid('prog'),
     createdAt: new Date().toISOString(),
     startDate: mondayOf(today),
+    firstDay: today,
     weeks,
     template,
     deloadWeeks,

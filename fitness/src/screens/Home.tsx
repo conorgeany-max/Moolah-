@@ -10,7 +10,7 @@ import { dayStatus, isPlanDone, isRunSession, missedThisWeek, planFor, SESSION_I
 import { weeklyStats } from '../engine/stats'
 import { SESSION_PURPOSE } from '../engine/programme'
 import { catchUpMissed, setOverride, takeDeloadThisWeek } from '../lib/actions'
-import { dayKey, greeting, parseDay, WEEKDAY_LONG, weekdayOf } from '../lib/date'
+import { addDays, dayKey, greeting, parseDay, WEEKDAY_LONG, weekdayOf } from '../lib/date'
 import { formatMinutes } from '../lib/format'
 import { navigate } from '../lib/router'
 import { previewWorkout, startPlanned } from '../lib/session'
@@ -79,9 +79,7 @@ export function Home() {
             <div className="flex items-start gap-3">
               <SessionIcon type={plan.type} size={44} />
               <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-muted">
-                  Today · {plan.inProgramme ? `Week ${plan.week} of ${programme.weeks}` : 'Off programme'}
-                </div>
+                <div className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-muted">Today · {plan.inProgramme ? `Week ${plan.week} of ${programme.weeks}` : 'Off programme'}</div>
                 <h2 id="today-h" className="text-[24px] font-bold tracking-[-0.02em] leading-tight mt-0.5">
                   {title}
                 </h2>
@@ -114,7 +112,7 @@ export function Home() {
             ) : plan.type === 'rest' ? (
               <div className="grid grid-cols-2 gap-2 mt-5">
                 <Button variant="secondary" size="lg" icon="leaf" onClick={() => navigate('/library/routine/rest-day-flow')}>
-                  Gentle mobility
+                  Mobility
                 </Button>
                 <Button variant="ghost" size="lg" onClick={() => setAdjustOpen(true)}>
                   Train anyway
@@ -161,7 +159,10 @@ export function Home() {
                   </div>
                 }
               >
-                Life happens. {plan.type !== 'rest' && SESSION_INFO[plan.type].hard && SESSION_INFO[m.type].hard ? 'Today already has a hard session, so let it go rather than doubling up.' : 'You can do it today, or skip it and carry on. Don’t try to cram everything in.'}
+                Life happens.{' '}
+                {plan.type !== 'rest' && SESSION_INFO[plan.type].hard && SESSION_INFO[m.type].hard
+                  ? 'Today already has a hard session, so let it go rather than doubling up.'
+                  : 'You can do it today, or skip it and carry on. Don’t try to cram everything in.'}
               </Notice>
             ))}
           </section>
@@ -282,6 +283,16 @@ function quickStart(minutes: number, plan: DayPlan) {
 
 function AdjustSheet({ open, onClose, plan }: { open: boolean; onClose: () => void; plan: DayPlan }) {
   const outdoor = useStore((s) => s.settings.outdoorMode)
+  const programme = useStore((s) => s.programme)
+  // A hard session swapped in next to another hard day is automatically made lighter.
+  const hardNeighbour = (type: SessionType) => {
+    if (!programme || !SESSION_INFO[type].hard) return null
+    for (const d of [addDays(plan.date, -1), addDays(plan.date, 1)]) {
+      const n = planFor(programme, d)
+      if (!n.skipped && SESSION_INFO[n.type].hard) return `${WEEKDAY_LONG[weekdayOf(d)]}’s ${SESSION_INFO[n.type].label}`
+    }
+    return null
+  }
   const swaps: { type: SessionType; why: string }[] = [
     { type: 'mobility', why: 'Low energy, sore, or short on time' },
     { type: 'run-easy', why: 'Want to get outside and move easily' },
@@ -317,32 +328,38 @@ function AdjustSheet({ open, onClose, plan }: { open: boolean; onClose: () => vo
         <div>
           <SectionHeader title="Swap the session" />
           <div className="space-y-2">
-            {swaps.map((s) => (
-              <button
-                key={s.type}
-                type="button"
-                className="press w-full flex items-center gap-3 p-3 rounded-[16px] bg-raised text-left"
-                onClick={() => {
-                  setOverride(today, { type: s.type, lighten: false })
-                  toast(`Today is now: ${SESSION_INFO[s.type].label}`, 'accent')
-                  onClose()
-                }}
-              >
-                <SessionIcon type={s.type} size={36} />
-                <span className="flex-1">
-                  <span className="block font-semibold text-[15px]">{SESSION_INFO[s.type].label}</span>
-                  <span className="block text-[13px] text-muted">{s.why}</span>
-                </span>
-                <span className="text-[12px] text-faint">{KIND_META[SESSION_INFO[s.type].kind].label}</span>
-              </button>
-            ))}
+            {swaps.map((s) => {
+              const clash = hardNeighbour(s.type)
+              return (
+                <button
+                  key={s.type}
+                  type="button"
+                  className="press w-full flex items-center gap-3 p-3 rounded-[16px] bg-raised text-left"
+                  onClick={() => {
+                    setOverride(today, { type: s.type, lighten: !!clash })
+                    toast(`Today is now: ${SESSION_INFO[s.type].label}${clash ? ' (lighter)' : ''}`, 'accent')
+                    onClose()
+                  }}
+                >
+                  <SessionIcon type={s.type} size={36} />
+                  <span className="flex-1">
+                    <span className="block font-semibold text-[15px]">{SESSION_INFO[s.type].label}</span>
+                    <span className="block text-[13px] text-muted">{s.why}</span>
+                    {clash && <span className="block text-[12.5px] text-warn mt-0.5">Lighter version, since {clash} is next to it</span>}
+                  </span>
+                  <span className="text-[12px] text-faint">{KIND_META[SESSION_INFO[s.type].kind].label}</span>
+                </button>
+              )
+            })}
           </div>
           <p className="text-[12.5px] text-faint mt-2 px-1">Swapping only changes today. Your weekly plan keeps its balance.</p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" onClick={() => (onClose(), navigate('/plan'))}>
-            Move to another day
-          </Button>
+        <div className={cx('grid gap-2', plan.type !== 'rest' && 'grid-cols-2')}>
+          {plan.type !== 'rest' && (
+            <Button variant="outline" onClick={() => (onClose(), navigate('/plan'))}>
+              Move to another day
+            </Button>
+          )}
           <Button variant="outline" onClick={() => (onClose(), navigate('/generate'))}>
             Build a custom workout
           </Button>

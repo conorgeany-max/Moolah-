@@ -146,7 +146,7 @@ export default function App() {
           <div className="max-w-[520px] mx-auto bg-danger-soft text-danger border border-line rounded-[14px] px-4 py-3 text-[14px] font-medium backdrop-blur-xl">{error}</div>
         </div>
       )}
-      {update && (
+      {update && !fullscreen && (
         <div className="fixed inset-x-0 z-50 px-4" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}>
           <div className="max-w-[520px] mx-auto flex items-center gap-3 bg-raised border border-line-strong rounded-[16px] p-3 pl-4 shadow-card">
             <span className="flex-1 text-[14.5px]">A new version of Forge is ready.</span>

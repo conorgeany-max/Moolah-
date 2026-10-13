@@ -65,6 +65,7 @@ export function regenerateProgramme(opts: { keepLevels: boolean; restart?: boole
   if (programme && !opts.restart) {
     // Keep the original start date so week numbers and history stay meaningful.
     next.startDate = programme.startDate
+    next.firstDay = programme.firstDay
     next.weeks = Math.max(programme.weeks, next.weeks)
     next.deloadWeeks = programme.deloadWeeks
     next.extraDeloadWeeks = programme.extraDeloadWeeks

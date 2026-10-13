@@ -36,7 +36,7 @@ export function Button({
     <button
       type="button"
       className={cx(
-        'press inline-flex items-center justify-center font-semibold tracking-[-0.01em] select-none disabled:opacity-40 disabled:pointer-events-none',
+        'press inline-flex items-center justify-center text-center font-semibold tracking-[-0.01em] select-none disabled:opacity-40 disabled:pointer-events-none',
         buttonVariant[variant],
         buttonSize[size],
         block && 'w-full',
