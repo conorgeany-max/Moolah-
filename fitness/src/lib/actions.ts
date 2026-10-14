@@ -1,14 +1,14 @@
 import { applyRecommendation, evaluateWorkout } from '../engine/progression'
 import { createProgramme } from '../engine/programme'
 import { recordHits } from '../engine/records'
-import { afterRunWalk, bestKilometreSec, reviewRunWeek } from '../engine/running'
+import { afterRunWalk, applyPain, bestKilometreSec, reviewRunWeek } from '../engine/running'
 import { isRunSession, moveSession, planFor, programmeWeek, isDeloadWeek } from '../engine/schedule'
 import { elapsedMs } from '../engine/steps'
 import { addDays, dayKey, diffDays } from './date'
 import { clearEverything, deleteKV, deleteRecord, putKV, putRecord, putRecords, type Collection } from './db'
 import { uid } from './id'
 import { DEFAULT_SETTINGS, getState, setState } from './store'
-import type { CheckIn, DayKey, DayOverride, Measurement, Metric, Profile, Programme, Recommendation, Run, Settings, Workout } from './types'
+import type { Benchmark, CheckIn, DayKey, DayOverride, Measurement, Metric, Profile, Programme, Recommendation, Run, Settings, Workout } from './types'
 
 /** Every write updates memory first (so the UI is instant), then persists. */
 function persistError(e: unknown) {
@@ -216,7 +216,7 @@ export function discardRun(id: string) {
   deleteRecord('runs', id).catch(persistError)
 }
 
-export function finishRun(id: string, info: Pick<Run, 'feel' | 'rpe' | 'notes' | 'completedPlan'>): { run: Run; message?: string } | null {
+export function finishRun(id: string, info: Pick<Run, 'feel' | 'rpe' | 'notes' | 'completedPlan' | 'pain'>): { run: Run; message?: string } | null {
   const s = getState()
   const r = s.runs.find((x) => x.id === id)
   if (!r) return null
@@ -257,8 +257,15 @@ export function deleteRun(id: string) {
 function progressRunning(run: Run): string | undefined {
   const s = getState()
   const p = s.programme
+  if (!p) return undefined
+  // Pain counts on any run, planned or not.
+  const pained = applyPain(p.run, run)
+  if (pained) {
+    saveProgramme({ ...p, run: pained.run })
+    return pained.message
+  }
   const t = run.sessionType
-  if (!p || t === 'manual' || t === 'free' || !isRunSession(t)) return undefined
+  if (t === 'manual' || t === 'free' || !isRunSession(t)) return undefined
   let rs = p.run
   const messages: string[] = []
   if (rs.runWalkStage >= 0) {
@@ -296,6 +303,18 @@ export function saveCheckIn(c: Omit<CheckIn, 'id' | 'createdAt'>) {
   return rec
 }
 
+export function saveBenchmark(b: Omit<Benchmark, 'id' | 'createdAt'>) {
+  const rec: Benchmark = { ...b, id: uid('bm'), createdAt: new Date().toISOString() }
+  setState((s) => ({ benchmarks: [rec, ...s.benchmarks] }))
+  saveList('benchmarks', rec)
+  return rec
+}
+
+export function deleteBenchmark(id: string) {
+  setState((s) => ({ benchmarks: s.benchmarks.filter((x) => x.id !== id) }))
+  deleteRecord('benchmarks', id).catch(persistError)
+}
+
 export function addMeasurement(m: Omit<Measurement, 'id' | 'createdAt'>) {
   const rec: Measurement = { ...m, id: uid('m'), createdAt: new Date().toISOString() }
   setState((s) => ({ measurements: [rec, ...s.measurements] }))
@@ -327,5 +346,6 @@ export async function deleteAllData() {
     measurements: [],
     recommendations: [],
     customExercises: [],
+    benchmarks: [],
   })
 }

@@ -1,3 +1,4 @@
+import { benchmarkDeltas, retestDue } from './benchmarks'
 import { describe, expect, it } from 'vitest'
 import { EXERCISES, TRACKS } from '../data/exercises'
 import type { Profile, Run, Workout } from '../lib/types'
@@ -6,7 +7,7 @@ import { ctxFromProfile, isAvailable, resolveExercise, substitutes, getExercise 
 import { buildSessionWorkout, createProgramme, estimateMinutes, fitToMinutes } from './programme'
 import { evaluateSlot } from './progression'
 import { recordHits } from './records'
-import { afterRunWalk, buildRunPlan, gpsIncrement, reviewRunWeek } from './running'
+import { afterRunWalk, applyPain, buildRunPlan, gpsIncrement, reviewRunWeek } from './running'
 import { evaluateWeek, moveSession, planFor, SESSION_INFO } from './schedule'
 import { buildSteps } from './steps'
 import { generateWorkout } from './generator'
@@ -148,6 +149,24 @@ describe('running', () => {
     expect(w2.run.lastProgressed).toBe('intensity')
     expect(w2.run.longMinutes).toBe(w1.run.longMinutes)
   })
+  it('steps running back on pain and holds the week on a niggle', () => {
+    const prog = createProgramme(profile(), '2026-10-13')
+    const advanced = { ...prog.run, runWalkStage: 3 }
+    expect(applyPain(advanced, { pain: 'pain' } as Run)?.run.runWalkStage).toBe(2)
+    expect(applyPain(advanced, { pain: 'niggle' } as Run)?.run.runWalkStage).toBe(3)
+    expect(applyPain(advanced, { pain: 'none' } as Run)).toBeNull()
+    const p = profile({ runLevel: 'fivek', experience: 'regular' })
+    const cont = createProgramme(p, '2026-10-13')
+    const hurt = applyPain(cont.run, { pain: 'pain' } as Run)!
+    expect(hurt.run.longMinutes).toBeLessThan(cont.run.longMinutes)
+    const runs = [
+      { status: 'completed', sessionType: 'run-easy', feel: 'easy', pain: 'niggle' },
+      { status: 'completed', sessionType: 'run-long', feel: 'easy' },
+    ] as Run[]
+    const w = reviewRunWeek(cont, runs, 2, 1, false)
+    expect(w.run.longMinutes).toBe(cont.run.longMinutes)
+    expect(w.run.qualityStage).toBe(cont.run.qualityStage)
+  })
   it('builds run/walk plans for beginners even on quality days', () => {
     const p = profile()
     const prog = createProgramme(p, '2026-10-13')
@@ -180,5 +199,23 @@ describe('generator', () => {
     const p = profile({ environments: ['park', 'stairs', 'bar'] })
     const { workout } = generateWorkout({ minutes: 30, focus: 'full', energy: 'normal', noEquipment: true }, p, null, [], [])
     for (const b of workout.blocks) for (const x of b.exercises) expect(isAvailable(getExercise(x.exerciseId)!, { environments: [], avoid: [], strictNoEquipment: true }), x.exerciseId).toBe(true)
+  })
+})
+
+describe('re-tests', () => {
+  it('asks for a baseline first, then waits about four weeks', () => {
+    const prog = createProgramme(profile(), '2026-10-12')
+    expect(retestDue(prog, [], '2026-10-13')).toBe('baseline')
+    const b = [{ id: 'b1', date: '2026-10-13', createdAt: '2026-10-13T10:00:00Z', pushups: 10, pushupExerciseId: 'pushup' }]
+    expect(retestDue(prog, b, '2026-10-20')).toBeNull()
+    expect(retestDue(prog, b, '2026-11-20')).toBe('retest')
+  })
+  it('compares push-ups only within the same variation and treats a faster km as better', () => {
+    const d = benchmarkDeltas([
+      { id: 'a', date: '2026-10-01', createdAt: 'a', pushups: 12, pushupExerciseId: 'knee-pushup', kmSec: 330 },
+      { id: 'b', date: '2026-11-01', createdAt: 'b', pushups: 6, pushupExerciseId: 'pushup', kmSec: 310 },
+    ])
+    expect(d.find((x) => x.key === 'pushups')?.change).toBeUndefined()
+    expect(d.find((x) => x.key === 'kmSec')?.change).toBe(20)
   })
 })

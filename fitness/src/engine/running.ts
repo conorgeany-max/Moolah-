@@ -127,6 +127,28 @@ export interface RunProgressResult {
 }
 
 /** Run/walk: repeat each stage until completed twice without it feeling hard. */
+/**
+ * Pain overrides everything else. Sharp or worsening pain steps running back straight away;
+ * a mild niggle just stops this run counting towards progression.
+ */
+export function applyPain(rs: RunState, run: Run): RunProgressResult | null {
+  if (run.pain === 'pain') {
+    const advice = 'Rest from running until you can walk, hop and jog lightly without pain. If it lasts more than a few days, see a physiotherapist.'
+    if (rs.runWalkStage >= 0) {
+      const stage = Math.max(0, rs.runWalkStage - 1)
+      return { run: { ...rs, runWalkStage: stage, stageSuccesses: 0, stageStruggles: 0 }, message: `You reported pain, so running steps back to ${describeRunWalk(stage)}. ${advice}` }
+    }
+    return {
+      run: { ...rs, easyMinutes: Math.max(15, Math.round(rs.easyMinutes * 0.8)), longMinutes: Math.max(20, Math.round(rs.longMinutes * 0.8)) },
+      message: `You reported pain, so run durations drop by about 20% and won't increase this week. ${advice}`,
+    }
+  }
+  if (run.pain === 'niggle') {
+    return { run: rs, message: 'Niggle noted. Running holds steady instead of progressing. Tell Forge again after your next run.' }
+  }
+  return null
+}
+
 export function afterRunWalk(rs: RunState, run: Run): RunProgressResult {
   if (rs.runWalkStage < 0) return { run: rs }
   const success = run.completedPlan !== false && run.feel !== 'hard'
@@ -167,6 +189,7 @@ export function reviewRunWeek(prog: Programme, runsInWeek: Run[], plannedRuns: n
   const base = { ...rs, reviewedWeek: week }
   if (isDeload) return { run: base, message: 'Deload week: run volume held steady.' }
   const done = runsInWeek.filter((r) => r.status === 'completed')
+  if (done.some((r) => r.pain === 'pain' || r.pain === 'niggle')) return { run: base, message: 'You reported discomfort after a run last week, so run volume and intensity are held.' }
   if (plannedRuns === 0) return { run: base }
   const completion = done.length / plannedRuns
   const easyHard = done.filter((r) => r.sessionType !== 'run-quality' && r.feel === 'hard').length

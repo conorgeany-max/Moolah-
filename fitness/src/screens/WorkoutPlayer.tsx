@@ -34,9 +34,7 @@ function update(w: Workout, fn: (draft: Workout) => void) {
 function lastPerformance(exerciseId: string, excludeId: string) {
   for (const w of getState().workouts) {
     if (w.id === excludeId || w.status === 'active') continue
-    for (const b of w.blocks)
-      for (const x of b.exercises)
-        if (x.exerciseId === exerciseId && x.sets.length) return { date: w.date, sets: x.sets.map(valueOf), effort: x.effort }
+    for (const b of w.blocks) for (const x of b.exercises) if (x.exerciseId === exerciseId && x.sets.length) return { date: w.date, sets: x.sets.map(valueOf), effort: x.effort }
   }
   return null
 }
@@ -51,7 +49,12 @@ export function WorkoutPlayer() {
   if (!workout)
     return (
       <div className="min-h-dvh pt-safe max-w-[560px] mx-auto px-4">
-        <EmptyState icon="bolt" title="No workout in progress" body="Start today’s session from Home, or build a custom workout." action={<Button onClick={() => navigate('/', { replace: true })}>Go to Home</Button>} />
+        <EmptyState
+          icon="bolt"
+          title="No workout in progress"
+          body="Start today’s session from Home, or build a custom workout."
+          action={<Button onClick={() => navigate('/', { replace: true })}>Go to Home</Button>}
+        />
       </div>
     )
   return <Player key={workout.id} workout={workout} />
@@ -164,6 +167,29 @@ function Player({ workout: w }: { workout: Workout }) {
     setSheet(null)
   }
 
+  // Warm-up and cool-down run as a follow-along countdown. The set records the time actually spent, not invented reps.
+  const guidedDone = (secondsSpent: number) => {
+    if (!step) return
+    update(w, (d) => {
+      const dx = d.blocks[step.blockIndex].exercises[step.exerciseIndex]
+      dx.sets.push({ id: uid('set'), seconds: Math.max(1, Math.round(secondsSpent)), completedAt: new Date().toISOString() })
+      if (d.runningSince === null) d.runningSince = Date.now()
+      d.rest = null
+    })
+    if (idx + 1 >= steps.length) setSheet('finish')
+  }
+  const skipRestOfBlock = () => {
+    if (!step) return
+    update(w, (d) => {
+      for (const dx of d.blocks[step.blockIndex].exercises) {
+        if (dx.sets.length) dx.targetSets = dx.sets.length
+        else dx.skipped = true
+      }
+      d.rest = null
+    })
+    if (step.blockIndex === w.blocks.length - 1) setSheet('finish')
+  }
+
   const progress = steps.length ? idx / steps.length : 0
   const finished = idx >= steps.length
 
@@ -190,7 +216,10 @@ function Player({ workout: w }: { workout: Workout }) {
 
       {paused && !finished && (
         <div className="mx-4 mt-2 p-3 rounded-[14px] bg-raised text-center text-[14.5px] font-medium">
-          Paused. Your progress is saved. <button className="text-accent-fg font-semibold ml-1" onClick={togglePause}>Resume</button>
+          Paused. Your progress is saved.{' '}
+          <button className="text-accent-fg font-semibold ml-1" onClick={togglePause}>
+            Resume
+          </button>
         </div>
       )}
 
@@ -230,6 +259,20 @@ function Player({ workout: w }: { workout: Workout }) {
             })
           }
         />
+      ) : step && x && ex && (block?.kind === 'warmup' || block?.kind === 'cooldown') ? (
+        <GuidedView
+          key={`${x.id}-${step.setIndex}`}
+          w={w}
+          step={step}
+          steps={steps}
+          x={x}
+          ex={ex}
+          paused={paused}
+          outdoor={outdoor}
+          onDone={guidedDone}
+          onSkipBlock={skipRestOfBlock}
+          onSheet={setSheet}
+        />
       ) : step && x && ex ? (
         <ExerciseView
           key={`${x.id}-${step.setIndex}`}
@@ -264,7 +307,12 @@ function Player({ workout: w }: { workout: Workout }) {
             Leave and keep in progress
           </Button>
           <div className="rounded-[16px] bg-raised overflow-hidden">
-            <Toggle checked={outdoor} onChange={(v) => (update(w, (d) => (d.outdoorMode = v)), updateSettings({ outdoorMode: v }))} label="Outdoor mode" description="Maximum contrast, bigger controls, no-equipment swaps" />
+            <Toggle
+              checked={outdoor}
+              onChange={(v) => (update(w, (d) => (d.outdoorMode = v)), updateSettings({ outdoorMode: v }))}
+              label="Outdoor mode"
+              description="Maximum contrast, bigger controls, no-equipment swaps"
+            />
             <Toggle checked={settings.voice} onChange={(v) => updateSettings({ voice: v })} label="Voice cues" description="Announces the next exercise when rest ends" />
             <Toggle checked={settings.sound} onChange={(v) => updateSettings({ sound: v })} label="Sounds" />
           </div>
@@ -299,7 +347,7 @@ function Player({ workout: w }: { workout: Workout }) {
               const dx = b.exercises[step.exerciseIndex]
               const range = rangeFor(to)
               const sameMetric = to.metric === ex.metric
-              const target = sameMetric ? (to.metric === 'time' ? dx.targetSeconds : dx.targetReps) ?? range[0] : range[0]
+              const target = sameMetric ? ((to.metric === 'time' ? dx.targetSeconds : dx.targetReps) ?? range[0]) : range[0]
               const fresh: ExerciseLog = {
                 ...dx,
                 id: uid('xl'),
@@ -330,7 +378,8 @@ function Player({ workout: w }: { workout: Workout }) {
       <Sheet open={sheet === 'hurt'} onClose={() => setSheet(null)} title="Something hurts?">
         <div className="space-y-4 text-[15px] leading-relaxed">
           <p>
-            <strong>Stop this exercise.</strong> Muscle burn, fatigue and mild soreness are normal effort. Sharp or stabbing pain, joint pain, pain that changes how you move, numbness, tingling, chest pain or dizziness are not.
+            <strong>Stop this exercise.</strong> Muscle burn, fatigue and mild soreness are normal effort. Sharp or stabbing pain, joint pain, pain that changes how you move, numbness, tingling, chest
+            pain or dizziness are not.
           </p>
           <p className="text-muted">If symptoms are severe, worsening or don’t settle, stop training and get advice from a qualified professional. Forge can’t diagnose injuries.</p>
           <div className="grid gap-2">
@@ -351,7 +400,18 @@ function Player({ workout: w }: { workout: Workout }) {
                 Try an easier variation
               </Button>
             )}
-            <Button size="lg" variant="secondary" block onClick={() => (update(w, (d) => { const dx = d.blocks[step!.blockIndex].exercises[step!.exerciseIndex]; dx.note = [dx.note, 'Skipped: discomfort'].filter(Boolean).join('. ') }), skipExercise())}>
+            <Button
+              size="lg"
+              variant="secondary"
+              block
+              onClick={() => (
+                update(w, (d) => {
+                  const dx = d.blocks[step!.blockIndex].exercises[step!.exerciseIndex]
+                  dx.note = [dx.note, 'Skipped: discomfort'].filter(Boolean).join('. ')
+                }),
+                skipExercise()
+              )}
+            >
               Skip this exercise
             </Button>
             <Button size="lg" variant="danger" block onClick={() => setSheet('finish')}>
@@ -419,7 +479,7 @@ function ExerciseView({
   onEditSet: (i: number, v: number) => void
 }) {
   const target = targetOf(x, ex)
-  const [value, setValue] = useState(() => x.sets.at(-1) ? valueOf(x.sets.at(-1)!) : target)
+  const [value, setValue] = useState(() => (x.sets.at(-1) ? valueOf(x.sets.at(-1)!) : target))
   const [showHow, setShowHow] = useState(x.sets.length === 0 && step.setIndex === 0 && !outdoor)
   const [editing, setEditing] = useState<number | null>(null)
   const last = useMemo(() => lastPerformance(ex.id, w.id), [ex.id, w.id])
@@ -477,7 +537,13 @@ function ExerciseView({
       {/* Logged sets & last time */}
       <div className="mt-3 flex flex-wrap items-center gap-1.5 min-h-[36px]">
         {x.sets.map((s, i) => (
-          <button key={s.id} type="button" onClick={() => setEditing(i)} className="press h-9 px-3 rounded-full bg-accent-soft text-accent-fg text-[14px] font-semibold num" aria-label={`Edit set ${i + 1}: ${valueOf(s)} ${unit(ex)}`}>
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setEditing(i)}
+            className="press h-9 px-3 rounded-full bg-accent-soft text-accent-fg text-[14px] font-semibold num"
+            aria-label={`Edit set ${i + 1}: ${valueOf(s)} ${unit(ex)}`}
+          >
             {valueOf(s)}
             {ex.metric === 'time' ? 's' : ''}
           </button>
@@ -517,7 +583,9 @@ function ExerciseView({
       </div>
 
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={`Edit set ${(editing ?? 0) + 1}`}>
-        {editing !== null && x.sets[editing] && <EditSet initial={valueOf(x.sets[editing])} unitLabel={unit(ex)} step={ex.metric === 'time' ? 5 : 1} onSave={(v) => (onEditSet(editing, v), setEditing(null))} />}
+        {editing !== null && x.sets[editing] && (
+          <EditSet initial={valueOf(x.sets[editing])} unitLabel={unit(ex)} step={ex.metric === 'time' ? 5 : 1} onSave={(v) => (onEditSet(editing, v), setEditing(null))} />
+        )}
       </Sheet>
     </div>
   )
@@ -580,7 +648,12 @@ function HoldTimer({ target, perSide, outdoor, onLog }: { target: number; perSid
   if (startedAt === null) {
     return (
       <div>
-        {sideLabel && <p className="text-center text-[15px] font-semibold mb-2">{sideLabel}{side1 !== null ? ` · first side ${side1}s` : ''}</p>}
+        {sideLabel && (
+          <p className="text-center text-[15px] font-semibold mb-2">
+            {sideLabel}
+            {side1 !== null ? ` · first side ${side1}s` : ''}
+          </p>
+        )}
         <Button size="xl" block className={cx(outdoor && 'h-20 text-[20px]')} icon="play" onClick={() => (unlockAudio(), setStartedAt(Date.now()))}>
           Start {target}s hold
         </Button>
@@ -616,40 +689,154 @@ function HoldTimer({ target, perSide, outdoor, onLog }: { target: number; perSid
 
 function EffortPrompt({ x, onEffort, onDone }: { x: ExerciseLog; onEffort: (e?: Effort, t?: Technique) => void; onDone: () => void }) {
   const ex = getExercise(x.exerciseId)
+  const choose = (e: Effort, t?: Technique) => {
+    onEffort(e, t)
+    onDone()
+  }
+  const options: { label: string; sub: string; pick: () => void }[] = [
+    { label: 'Easy', sub: '3+ reps left', pick: () => choose('easy') },
+    { label: 'Solid', sub: '1–2 left', pick: () => choose('solid') },
+    { label: 'Max', sub: 'nothing left', pick: () => choose('max') },
+    { label: 'Form slipped', sub: 'reps got sloppy', pick: () => choose('max', 'breakdown') },
+  ]
   return (
     <div className="mt-3 p-4 rounded-[20px] bg-raised border border-line animate-rise">
       <div className="flex items-center justify-between">
-        <div className="text-[15px] font-semibold">How was {ex?.name ?? 'that'}?</div>
-        <button type="button" className="text-[13.5px] text-muted font-medium" onClick={onDone}>
-          {x.effort && x.technique ? 'Done' : 'Skip'}
+        <div className="text-[15px] font-semibold">How was the last set of {ex?.name ?? 'that'}?</div>
+        <button type="button" className="text-[13.5px] text-muted font-medium px-1 py-1" onClick={onDone}>
+          Skip
         </button>
       </div>
-      <p className="text-[12.5px] text-muted mt-0.5">Used to decide when you’re ready to progress.</p>
-      <div className="mt-3">
-        <Segmented
-          value={x.effort ?? ('' as Effort)}
-          options={[
-            { value: 'easy', label: '3+ left' },
-            { value: 'solid', label: '1–2 left' },
-            { value: 'max', label: 'Max' },
-          ]}
-          onChange={(v) => onEffort(v)}
-        />
-        <div className="text-[11.5px] text-faint mt-1 px-1">Reps you had left in reserve on the last set</div>
+      <p className="text-[12.5px] text-muted mt-0.5">One tap. This decides when you’re ready to progress.</p>
+      <div className="grid grid-cols-4 gap-1.5 mt-3" role="group" aria-label="Effort on the last set">
+        {options.map((o) => (
+          <button key={o.label} type="button" onClick={o.pick} className="press rounded-[14px] bg-sunken border border-line px-1 py-2.5 text-center">
+            <span className="block text-[14px] font-semibold leading-tight">{o.label}</span>
+            <span className="block text-[11px] text-muted mt-0.5 leading-tight">{o.sub}</span>
+          </button>
+        ))}
       </div>
-      <div className="mt-3">
-        <Segmented
-          value={x.technique ?? ('' as Technique)}
-          options={[
-            { value: 'clean', label: 'Clean form' },
-            { value: 'some', label: 'Mostly' },
-            { value: 'breakdown', label: 'Broke down' },
-          ]}
-          onChange={(v) => {
-            onEffort(undefined, v)
-            if (x.effort) onDone()
-          }}
-        />
+    </div>
+  )
+}
+
+// ───────────── Guided warm-up / cool-down ─────────────
+
+/** Seconds a follow-along move lasts: its hold time, or about 2 s per rep (both sides when per side). */
+function guidedSeconds(x: ExerciseLog) {
+  if (x.targetSeconds) return x.targetSeconds * (x.perSide ? 2 : 1)
+  return Math.max(20, (x.targetReps ?? 8) * 2 * (x.perSide ? 2 : 1))
+}
+
+function GuidedView({
+  w,
+  step,
+  steps,
+  x,
+  ex,
+  paused,
+  outdoor,
+  onDone,
+  onSkipBlock,
+  onSheet,
+}: {
+  w: Workout
+  step: Step
+  steps: Step[]
+  x: ExerciseLog
+  ex: Exercise
+  paused: boolean
+  outdoor: boolean
+  onDone: (seconds: number) => void
+  onSkipBlock: () => void
+  onSheet: (s: 'swap' | 'info') => void
+}) {
+  const total = guidedSeconds(x)
+  const [spentMs, setSpentMs] = useState(0)
+  const last = useRef(Date.now())
+  const finished = useRef(false)
+  useEffect(() => {
+    last.current = Date.now()
+    if (paused) return
+    const id = setInterval(() => {
+      const t = Date.now()
+      setSpentMs((v) => v + (t - last.current))
+      last.current = t
+    }, 200)
+    return () => clearInterval(id)
+  }, [paused])
+  const remaining = Math.max(0, Math.ceil(total - spentMs / 1000))
+  const lastTick = useRef(-1)
+  useEffect(() => {
+    if (finished.current) return
+    if (remaining <= 3 && remaining > 0 && remaining !== lastTick.current) {
+      lastTick.current = remaining
+      beep('tick')
+    }
+    if (remaining === 0) {
+      finished.current = true
+      beep('go')
+      onDone(total)
+    }
+  }, [remaining, total, onDone])
+
+  const block = w.blocks[step.blockIndex]
+  const inBlock = steps.filter((s) => s.blockIndex === step.blockIndex)
+  const pos = inBlock.findIndex((s) => s.exerciseIndex === step.exerciseIndex && s.setIndex === step.setIndex)
+  const nextStep = steps[steps.indexOf(step) + 1]
+  const nextEx = nextStep ? getExercise(exerciseAt(w, nextStep).exerciseId) : undefined
+  const dose = x.targetSeconds ? `${x.targetSeconds}s${x.perSide ? ' each side' : ''}` : `${x.targetReps ?? 8} reps${x.perSide ? ' each side' : ''}`
+
+  return (
+    <div className="flex-1 flex flex-col px-4 pb-safe">
+      <div className="pt-3 animate-rise">
+        <div className="flex items-center gap-2">
+          <Badge tone="calm">
+            {block.kind === 'warmup' ? 'Warm-up' : 'Cool-down'} · {pos + 1} of {inBlock.length}
+          </Badge>
+          <span className="text-[13px] text-muted">Follow along. It moves on by itself.</span>
+        </div>
+        <h1 className={cx('font-bold tracking-[-0.02em] mt-3 leading-tight', outdoor ? 'text-[36px]' : 'text-[30px]')}>{ex.name}</h1>
+        <div className="text-[17px] text-accent-fg font-semibold mt-1">{dose}</div>
+      </div>
+      <div className="flex items-center gap-4 mt-4">
+        <div className="w-36 shrink-0 rounded-[18px] bg-sunken border border-line p-2 aspect-[3/2]">
+          <ExerciseFigure figure={ex.figure} animated={!getState().settings.reducedMotion} label={`${ex.name} diagram`} />
+        </div>
+        <p className="text-[14.5px] text-muted leading-snug">{ex.cues.slice(0, 2).join(' · ')}</p>
+      </div>
+      <div className="flex-1 grid place-items-center py-6">
+        <ProgressRing value={total ? spentMs / 1000 / total : 0} size={outdoor ? 220 : 196} stroke={10} tone="calm" label="Time left on this move">
+          <div className="text-center">
+            <div className={cx('num font-bold leading-none', outdoor ? 'text-[64px]' : 'text-[56px]', paused && 'text-muted')}>{formatDuration(remaining * 1000)}</div>
+            <div className="text-[13px] text-muted mt-1">{paused ? 'paused' : x.perSide && !x.targetSeconds ? 'switch sides halfway' : 'left'}</div>
+          </div>
+        </ProgressRing>
+      </div>
+      {nextEx && nextStep.blockIndex === step.blockIndex && <p className="text-center text-[14px] text-muted mb-3">Next: {nextEx.name}</p>}
+      <Button
+        size="xl"
+        block
+        iconRight="skip"
+        className={cx(outdoor && 'h-20 text-[20px]')}
+        onClick={() => {
+          if (finished.current) return
+          finished.current = true
+          onDone(spentMs / 1000)
+        }}
+      >
+        Next move
+      </Button>
+      <div className="grid grid-cols-3 gap-2 mt-3 mb-2 text-[13.5px]">
+        <button type="button" className="press py-2.5 text-muted font-medium" onClick={() => onSheet('swap')}>
+          Swap
+        </button>
+        <button type="button" className="press py-2.5 text-muted font-medium" onClick={() => onSheet('info')}>
+          How to
+        </button>
+        <button type="button" className="press py-2.5 text-muted font-medium" onClick={onSkipBlock}>
+          Skip {block.kind === 'warmup' ? 'warm-up' : 'cool-down'}
+        </button>
       </div>
     </div>
   )
@@ -697,7 +884,13 @@ function RestView({
         </ProgressRing>
         <div className="flex items-center gap-3 mt-6">
           <IconButton icon="reset" label="Reset rest timer" size={52} onClick={onReset} />
-          <IconButton icon={rest.pausedRemainingMs !== null ? 'play' : 'pause'} label={rest.pausedRemainingMs !== null ? 'Resume rest timer' : 'Pause rest timer'} size={52} onClick={onTogglePause} disabled={paused} />
+          <IconButton
+            icon={rest.pausedRemainingMs !== null ? 'play' : 'pause'}
+            label={rest.pausedRemainingMs !== null ? 'Resume rest timer' : 'Pause rest timer'}
+            size={52}
+            onClick={onTogglePause}
+            disabled={paused}
+          />
           <Button variant="secondary" size="md" className="rounded-full h-[52px]" onClick={() => onAdd(15)}>
             +15s
           </Button>

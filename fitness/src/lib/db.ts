@@ -4,13 +4,13 @@
  * Nothing in here talks to a network.
  */
 
-export const COLLECTIONS = ['workouts', 'runs', 'checkIns', 'measurements', 'recommendations', 'milestones', 'customExercises'] as const
+export const COLLECTIONS = ['workouts', 'runs', 'checkIns', 'measurements', 'recommendations', 'milestones', 'customExercises', 'benchmarks'] as const
 export type Collection = (typeof COLLECTIONS)[number]
 const STORES = [...COLLECTIONS, 'kv', 'photos'] as const
 type Store = (typeof STORES)[number]
 
 const DB_NAME = 'forge'
-const DB_VERSION = 1
+const DB_VERSION = 2 // v2: benchmarks store
 const LS_KEY = 'forge:fallback-v1'
 
 let dbPromise: Promise<IDBDatabase> | null = null

@@ -222,6 +222,8 @@ export function RunDetail({ id }: { id: string }) {
       <div className="flex flex-wrap gap-1.5 mt-3">
         <Badge>{r.source === 'gps' ? 'GPS' : r.source === 'timer' ? 'Timer' : 'Manual entry'}</Badge>
         {r.feel && <Badge tone={r.feel === 'hard' ? 'warn' : r.feel === 'easy' ? 'accent' : 'neutral'}>Felt {r.feel === 'hard' ? 'difficult' : r.feel}</Badge>}
+        {r.pain === 'pain' && <Badge tone="danger">Pain reported</Badge>}
+        {r.pain === 'niggle' && <Badge tone="warn">Niggle reported</Badge>}
         {r.rpe && <Badge>Effort {r.rpe}/10</Badge>}
         {r.plan && <Badge tone={r.completedPlan === false ? 'warn' : 'accent'}>{r.completedPlan === false ? 'Cut short' : 'Plan completed'}</Badge>}
         {hits.map((h) => (

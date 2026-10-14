@@ -23,6 +23,7 @@ import { DataScreen } from './screens/DataScreen'
 import { BodyScreen } from './screens/Body'
 import { PlanScreen } from './screens/Plan'
 import { AboutScreen } from './screens/About'
+import { RetestScreen } from './screens/Retest'
 
 function useAppearance() {
   const settings = useStore((s) => s.settings)
@@ -71,6 +72,8 @@ function Routes() {
       return <PlanScreen />
     case 'about':
       return <AboutScreen />
+    case 'test':
+      return <RetestScreen />
     case 'workout':
       if (b === 'summary' && c) return <WorkoutSummary id={c} />
       return <WorkoutPlayer />

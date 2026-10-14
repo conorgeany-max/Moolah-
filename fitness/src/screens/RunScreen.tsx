@@ -14,7 +14,8 @@ import { formatDuration, formatSeconds } from '../lib/format'
 import { uid } from '../lib/id'
 import { navigate, useRoute } from '../lib/router'
 import { getState, useStore } from '../lib/store'
-import type { Feel, GeoPoint, Run, RunSegment, SessionType } from '../lib/types'
+import type { Feel, GeoPoint, Run, RunPain, RunSegment, SessionType } from '../lib/types'
+import { PainCheck } from '../components/Training'
 import { distanceValue, formatPace, toMeters } from '../lib/units'
 
 const SEG_TONE: Record<RunSegment['kind'], string> = {
@@ -91,7 +92,9 @@ function RunSetup() {
           </div>
           <p className="text-[14.5px] text-muted leading-relaxed">{plan.effort}</p>
           {units && getState().profile?.easyPaceSecPerKm && plan.sessionType !== 'free' && (
-            <p className="text-[13.5px] text-faint mt-2">Your easy pace is around {formatPace(getState().profile!.easyPaceSecPerKm!, units)}. Effort matters more than pace on hills, heat or tired days.</p>
+            <p className="text-[13.5px] text-faint mt-2">
+              Your easy pace is around {formatPace(getState().profile!.easyPaceSecPerKm!, units)}. Effort matters more than pace on hills, heat or tired days.
+            </p>
           )}
         </Card>
 
@@ -106,7 +109,12 @@ function RunSetup() {
             <Card className="divide-y divide-line max-h-[260px] overflow-y-auto">
               {plan.segments.map((s, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className={cx('w-2.5 h-2.5 rounded-full', s.kind === 'hard' ? 'bg-accent' : s.kind === 'run' || s.kind === 'steady' ? 'bg-run' : s.kind === 'walk' || s.kind === 'recover' ? 'bg-calm' : 'bg-faint')} />
+                  <span
+                    className={cx(
+                      'w-2.5 h-2.5 rounded-full',
+                      s.kind === 'hard' ? 'bg-accent' : s.kind === 'run' || s.kind === 'steady' ? 'bg-run' : s.kind === 'walk' || s.kind === 'recover' ? 'bg-calm' : 'bg-faint',
+                    )}
+                  />
                   <span className="flex-1 text-[15px]">{s.label}</span>
                   <span className="num text-[14px] text-muted">{formatSeconds(s.seconds)}</span>
                 </div>
@@ -251,7 +259,15 @@ function ActiveRun({ run }: { run: Run }) {
           {run.source === 'gps' && (
             <Badge tone={gps.status === 'ok' ? 'accent' : gps.status === 'waiting' ? 'neutral' : 'warn'}>
               <Icon name="pin" size={13} />
-              {gps.status === 'ok' ? `GPS ±${gps.acc}m` : gps.status === 'poor' ? `Weak GPS ±${gps.acc}m` : gps.status === 'waiting' ? 'Finding GPS…' : gps.status === 'denied' ? 'Location blocked' : 'GPS error'}
+              {gps.status === 'ok'
+                ? `GPS ±${gps.acc}m`
+                : gps.status === 'poor'
+                  ? `Weak GPS ±${gps.acc}m`
+                  : gps.status === 'waiting'
+                    ? 'Finding GPS…'
+                    : gps.status === 'denied'
+                      ? 'Location blocked'
+                      : 'GPS error'}
             </Badge>
           )}
           {keepAwake && <Badge tone={wake.active ? 'neutral' : 'warn'}>{wake.active ? 'Screen on' : 'Keep screen on'}</Badge>}
@@ -260,16 +276,31 @@ function ActiveRun({ run }: { run: Run }) {
 
       {gps.status === 'denied' && (
         <Notice tone="warn" icon="pin" title="Location permission is off">
-          Distance can’t be measured. The timer keeps running; you can enter distance at the end. To allow location, enable it for Safari or the Home Screen app in iPhone Settings → Privacy & Security → Location Services.
+          Distance can’t be measured. The timer keeps running; you can enter distance at the end. To allow location, enable it for Safari or the Home Screen app in iPhone Settings → Privacy & Security
+          → Location Services.
         </Notice>
       )}
 
       {seg && (
         <div className={cx('mt-2 rounded-[24px] p-5 text-center', SEG_TONE[seg.seg.kind])} style={seg.seg.kind === 'hard' ? { background: 'var(--accent)' } : undefined}>
-          <div className="text-[13px] font-semibold uppercase tracking-[0.1em] opacity-80">{seg.seg.kind === 'hard' ? 'Push' : seg.seg.kind === 'walk' || seg.seg.kind === 'recover' ? 'Recover' : seg.seg.kind === 'warmup' ? 'Warm up' : seg.seg.kind === 'cooldown' ? 'Cool down' : 'Run'}</div>
+          <div className="text-[13px] font-semibold uppercase tracking-[0.1em] opacity-80">
+            {seg.seg.kind === 'hard'
+              ? 'Push'
+              : seg.seg.kind === 'walk' || seg.seg.kind === 'recover'
+                ? 'Recover'
+                : seg.seg.kind === 'warmup'
+                  ? 'Warm up'
+                  : seg.seg.kind === 'cooldown'
+                    ? 'Cool down'
+                    : 'Run'}
+          </div>
           <div className="text-[28px] font-bold mt-1">{seg.seg.label}</div>
           <div className="num text-[44px] font-bold leading-none mt-1">{formatDuration(seg.remaining * 1000)}</div>
-          {run.plan![seg.index + 1] && <div className="text-[14px] opacity-80 mt-2">Next: {run.plan![seg.index + 1].label} · {formatSeconds(run.plan![seg.index + 1].seconds)}</div>}
+          {run.plan![seg.index + 1] && (
+            <div className="text-[14px] opacity-80 mt-2">
+              Next: {run.plan![seg.index + 1].label} · {formatSeconds(run.plan![seg.index + 1].seconds)}
+            </div>
+          )}
         </div>
       )}
       {planDone && (
@@ -340,6 +371,7 @@ function FinishRunSheet({ open, onClose, run, elapsedMs: ms, planDone }: { open:
   const [notes, setNotes] = useState('')
   const [manualDist, setManualDist] = useState<number | undefined>(undefined)
   const [completedPlan, setCompletedPlan] = useState(true)
+  const [pain, setPain] = useState<RunPain | undefined>(undefined)
   useEffect(() => setCompletedPlan(planDone || !run.plan), [planDone, run.plan, open])
   const measured = run.source === 'gps' ? distanceValue(run.distanceM, units) : undefined
   return (
@@ -371,6 +403,7 @@ function FinishRunSheet({ open, onClose, run, elapsedMs: ms, planDone }: { open:
             ]}
           />
         )}
+        <PainCheck value={pain} onChange={setPain} />
         <div>
           <div className="font-semibold text-[15px] mb-2">How did it feel?</div>
           <Segmented
@@ -399,8 +432,15 @@ function FinishRunSheet({ open, onClose, run, elapsedMs: ms, planDone }: { open:
           onClick={() => {
             const state = getState()
             const live = state.runs.find((r) => r.id === run.id)
-            if (live && manualDist !== undefined) saveRun({ ...live, distanceM: toMeters(manualDist, units), notes: [notes, run.source === 'gps' ? 'Distance adjusted manually' : ''].filter(Boolean).join(' · ') || undefined })
-            const res = finishRun(run.id, { feel, rpe, notes: manualDist !== undefined && run.source === 'gps' ? [notes, 'Distance adjusted manually'].filter(Boolean).join(' · ') : notes || undefined, completedPlan })
+            if (live && manualDist !== undefined)
+              saveRun({ ...live, distanceM: toMeters(manualDist, units), notes: [notes, run.source === 'gps' ? 'Distance adjusted manually' : ''].filter(Boolean).join(' · ') || undefined })
+            const res = finishRun(run.id, {
+              feel,
+              rpe,
+              notes: manualDist !== undefined && run.source === 'gps' ? [notes, 'Distance adjusted manually'].filter(Boolean).join(' · ') : notes || undefined,
+              completedPlan,
+              pain,
+            })
             if (res?.message) toast(res.message, 'accent')
             navigate(`/run/${run.id}`, { replace: true })
           }}

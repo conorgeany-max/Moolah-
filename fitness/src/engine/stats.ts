@@ -17,6 +17,20 @@ export interface WeekStat {
   runs: number
 }
 
+/** How many weekly bars to show: back to the first week you trained (or started the programme), between min and max. */
+export function chartWeeks(start: DayKey | undefined, today: DayKey = dayKey(), min = 1, max = 10): number {
+  if (!start) return min
+  const n = Math.floor(diffDays(mondayOf(today), mondayOf(start)) / 7) + 1
+  return Math.max(min, Math.min(max, n))
+}
+
+/** The earliest date anything was logged or the programme began. */
+export function firstActivity(workouts: Workout[], runs: Run[], programmeStart?: DayKey): DayKey | undefined {
+  const dates = [...workouts.filter((w) => w.status !== 'active').map((w) => w.date), ...runs.filter((r) => r.status === 'completed').map((r) => r.date)]
+  if (programmeStart) dates.push(programmeStart)
+  return dates.sort()[0]
+}
+
 export function weeklyStats(workouts: Workout[], runs: Run[], weeks = 8, today: DayKey = dayKey()): WeekStat[] {
   const thisMonday = mondayOf(today)
   const out: WeekStat[] = []

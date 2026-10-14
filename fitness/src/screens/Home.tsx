@@ -2,12 +2,11 @@ import { useMemo, useState } from 'react'
 import { Icon } from '../components/Icon'
 import { Screen } from '../components/Layout'
 import { CheckInCard, IntensityBadge, KIND_META, RecommendationCard, SessionIcon, sessionIntensity, WeekStrip } from '../components/Training'
-import { Badge, Button, Card, cx, IconButton, Notice, ProgressBar, ProgressRing, SectionHeader, Sheet, Stat, TextLink, toast } from '../components/ui'
-import { milestones, nextMilestone } from '../engine/milestones'
+import { Badge, Button, Card, cx, IconButton, Notice, ProgressRing, SectionHeader, Sheet, TextLink, toast } from '../components/ui'
 import { shouldSuggestDeload } from '../engine/readiness'
+import { retestDue } from '../engine/benchmarks'
 import { buildRunPlan } from '../engine/running'
 import { dayStatus, isPlanDone, isRunSession, missedThisWeek, planFor, SESSION_INFO, weekPlan, type DayPlan } from '../engine/schedule'
-import { weeklyStats } from '../engine/stats'
 import { SESSION_PURPOSE } from '../engine/programme'
 import { catchUpMissed, setOverride, takeDeloadThisWeek } from '../lib/actions'
 import { addDays, dayKey, greeting, parseDay, WEEKDAY_LONG, weekdayOf } from '../lib/date'
@@ -16,7 +15,6 @@ import { navigate } from '../lib/router'
 import { previewWorkout, startPlanned } from '../lib/session'
 import { useStore } from '../lib/store'
 import type { SessionType } from '../lib/types'
-import { distanceValue } from '../lib/units'
 
 export function Home() {
   const profile = useStore((s) => s.profile)!
@@ -34,9 +32,9 @@ export function Home() {
   const missed = programme ? missedThisWeek(programme, workouts, runs, today) : []
   const plannedCount = week.filter((d) => d.type !== 'rest' && !d.skipped).length
   const doneCount = week.filter((d) => dayStatus(d, workouts, runs, today) === 'done').length
-  const stats = useMemo(() => weeklyStats(workouts, runs, 2, today), [workouts, runs, today])
-  const ms = useMemo(() => nextMilestone(milestones({ workouts, runs, programme, today })), [workouts, runs, programme, today])
   const deloadSuggested = plan && !plan.isDeload && shouldSuggestDeload(checkIns)
+  const benchmarks = useStore((s) => s.benchmarks)
+  const testDue = retestDue(programme, benchmarks, today)
 
   const est = useMemo(() => {
     if (!plan || plan.type === 'rest' || !programme) return null
@@ -114,8 +112,8 @@ export function Home() {
                 <Button variant="secondary" size="lg" icon="leaf" onClick={() => navigate('/library/routine/rest-day-flow')}>
                   Mobility
                 </Button>
-                <Button variant="ghost" size="lg" onClick={() => setAdjustOpen(true)}>
-                  Train anyway
+                <Button variant="ghost" size="lg" icon="swap" onClick={() => setAdjustOpen(true)}>
+                  Change today
                 </Button>
               </div>
             ) : plan.skipped ? (
@@ -130,8 +128,8 @@ export function Home() {
                 <Button size="xl" icon="play" onClick={() => startPlanned(today)}>
                   {isRunSession(plan.type) ? 'Start run' : 'Start workout'}
                 </Button>
-                <Button size="xl" variant="secondary" aria-label="Adjust today’s session" onClick={() => setAdjustOpen(true)}>
-                  <Icon name="swap" size={22} />
+                <Button size="xl" variant="secondary" icon="swap" aria-label="Change today’s session" onClick={() => setAdjustOpen(true)}>
+                  Change
                 </Button>
               </div>
             )}
@@ -183,6 +181,23 @@ export function Home() {
           </Notice>
         )}
 
+        {testDue && (
+          <Card className="p-4" onClick={() => navigate('/test')}>
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-[12px] bg-accent-soft text-accent-fg grid place-items-center shrink-0">
+                <Icon name="target" size={20} />
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold">{testDue === 'baseline' ? 'Set your baseline' : 'Re-test week'}</div>
+                <div className="text-[13.5px] text-muted leading-snug">
+                  {testDue === 'baseline' ? 'Four quick tests now, so you can see real progress in a month.' : 'About 10 minutes. See how far you’ve come since last time.'}
+                </div>
+              </div>
+              <Icon name="chevronRight" size={18} className="text-faint" />
+            </div>
+          </Card>
+        )}
+
         <CheckInCard />
 
         {recs.length > 0 && (
@@ -216,69 +231,11 @@ export function Home() {
             <WeekStrip />
           </Card>
         </section>
-
-        {/* ── Quick options ── */}
-        <section>
-          <SectionHeader title="Short on time?" />
-          <div className="grid grid-cols-3 gap-2">
-            {[10, 20, 30].map((m) => (
-              <Card key={m} className="p-3.5 text-center" onClick={() => quickStart(m, plan)} aria-label={`Start a ${m}-minute workout`}>
-                <div className="num text-[24px] font-bold leading-none">{m}</div>
-                <div className="text-[12.5px] text-muted mt-1">min {plan.type !== 'rest' && !doneToday ? 'version' : 'workout'}</div>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Trends ── */}
-        <section>
-          <SectionHeader title="Trends" action={<TextLink onClick={() => navigate('/progress')}>All progress</TextLink>} />
-          <Card className="p-4 grid grid-cols-3 gap-3">
-            <Stat label="Sessions" value={stats[1].sessions} sub={<Delta now={stats[1].sessions} prev={stats[0].sessions} />} />
-            <Stat label="Sets" value={stats[1].workingSets} sub={<Delta now={stats[1].workingSets} prev={stats[0].workingSets} />} />
-            <Stat
-              label={profile.units.distance === 'km' ? 'Km run' : 'Miles'}
-              value={distanceValue(stats[1].runDistanceM, profile.units).toFixed(1)}
-              sub={<Delta now={stats[1].runDistanceM} prev={stats[0].runDistanceM} />}
-            />
-          </Card>
-          <p className="text-[12.5px] text-faint mt-2 px-1">This week vs last week, from your logged training.</p>
-        </section>
-
-        {ms && (
-          <section>
-            <SectionHeader title="Next milestone" />
-            <Card className="p-4" onClick={() => navigate('/progress')}>
-              <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-[12px] bg-raised grid place-items-center">
-                  <Icon name="trophy" size={20} />
-                </span>
-                <div className="flex-1">
-                  <div className="font-semibold">{ms.title}</div>
-                  <div className="text-[13.5px] text-muted">{ms.detail}</div>
-                </div>
-              </div>
-              <ProgressBar value={ms.progress ?? 0} className="mt-3" label={`${ms.title} progress`} />
-            </Card>
-          </section>
-        )}
       </div>
 
       <AdjustSheet open={adjustOpen} onClose={() => setAdjustOpen(false)} plan={plan} />
     </Screen>
   )
-}
-
-function Delta({ now, prev }: { now: number; prev: number }) {
-  if (!now && !prev) return <span className="text-faint">—</span>
-  if (prev === 0) return <span className="text-accent-fg">New</span>
-  const d = Math.round(((now - prev) / prev) * 100)
-  return <span className={d >= 0 ? 'text-accent-fg' : 'text-muted'}>{d >= 0 ? `+${d}%` : `${d}%`}</span>
-}
-
-function quickStart(minutes: number, plan: DayPlan) {
-  if (plan.type !== 'rest' && !plan.skipped) startPlanned(plan.date, { minutes })
-  else navigate(`/generate?minutes=${minutes}`)
 }
 
 function AdjustSheet({ open, onClose, plan }: { open: boolean; onClose: () => void; plan: DayPlan }) {
@@ -301,8 +258,20 @@ function AdjustSheet({ open, onClose, plan }: { open: boolean; onClose: () => vo
   ].filter((s) => s.type !== plan.type) as { type: SessionType; why: string }[]
   const today = plan.date
   return (
-    <Sheet open={open} onClose={onClose} title="Adjust today">
+    <Sheet open={open} onClose={onClose} title="Change today">
       <div className="space-y-5">
+        {plan.type === 'rest' && (
+          <div>
+            <SectionHeader title="Quick workout" />
+            <div className="grid grid-cols-3 gap-2">
+              {[10, 20, 30].map((m) => (
+                <Button key={m} variant="secondary" size="lg" onClick={() => (onClose(), navigate(`/generate?minutes=${m}`))}>
+                  {m} min
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         {plan.type !== 'rest' && (
           <div>
             <SectionHeader title="Same session, less time" />

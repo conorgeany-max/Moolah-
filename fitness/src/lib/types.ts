@@ -363,6 +363,8 @@ export interface RunSegment {
   label: string
 }
 
+export type RunPain = 'none' | 'niggle' | 'pain'
+
 export interface Run {
   id: string
   date: DayKey
@@ -379,6 +381,8 @@ export interface Run {
   /** Planned interval structure, if guided. */
   plan?: RunSegment[]
   feel?: Feel
+  /** Post-run check of shins, knees, Achilles and feet. Unset means the runner didn't answer. */
+  pain?: RunPain
   rpe?: number
   notes?: string
   completedPlan?: boolean
@@ -433,6 +437,19 @@ export interface Milestone {
   achievedAt?: string
 }
 
+/** A short max-effort re-test, taken about every four weeks to show progress beyond the training log. */
+export interface Benchmark {
+  id: string
+  date: DayKey
+  createdAt: string
+  pushups?: number
+  /** The push-up variation tested, so later results compare like with like. */
+  pushupExerciseId?: string
+  plankSec?: number
+  squats60?: number
+  kmSec?: number
+}
+
 export interface AppData {
   profile: Profile | null
   settings: Settings
@@ -443,4 +460,5 @@ export interface AppData {
   measurements: Measurement[]
   recommendations: Recommendation[]
   customExercises: Exercise[]
+  benchmarks: Benchmark[]
 }

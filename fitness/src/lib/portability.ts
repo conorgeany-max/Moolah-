@@ -9,7 +9,7 @@ import type { AppData, Workout } from './types'
  *   "format": "forge-export", "version": 1, "exportedAt": ISO timestamp,
  *   "profile": Profile | null, "settings": Settings, "programme": Programme | null,
  *   "workouts": Workout[], "runs": Run[], "checkIns": CheckIn[], "measurements": Measurement[],
- *   "recommendations": Recommendation[], "customExercises": Exercise[]
+ *   "recommendations": Recommendation[], "customExercises": Exercise[], "benchmarks": Benchmark[] (re-test results)
  * }
  * Units inside the file are always metric (kg, cm, metres, milliseconds), regardless of display units.
  * Progress photos are not included: they stay on this device.
@@ -32,6 +32,7 @@ export function buildExport() {
     measurements: s.measurements,
     recommendations: s.recommendations,
     customExercises: s.customExercises,
+    benchmarks: s.benchmarks,
   }
 }
 
@@ -81,11 +82,11 @@ export function workoutsCsv(workouts: Workout[]) {
 }
 
 export function runsCsv() {
-  const rows: unknown[][] = [['date', 'title', 'source', 'distance_km', 'duration_min', 'pace_min_per_km', 'feel', 'rpe', 'notes']]
+  const rows: unknown[][] = [['date', 'title', 'source', 'distance_km', 'duration_min', 'pace_min_per_km', 'feel', 'pain', 'rpe', 'notes']]
   for (const r of [...getState().runs].filter((r) => r.status === 'completed').sort((a, b) => a.startedAt.localeCompare(b.startedAt))) {
     const km = r.distanceM / 1000
     const min = r.activeMs / 60000
-    rows.push([r.date, r.title, r.source, km.toFixed(3), min.toFixed(2), km > 0 ? (min / km).toFixed(2) : '', r.feel, r.rpe, r.notes])
+    rows.push([r.date, r.title, r.source, km.toFixed(3), min.toFixed(2), km > 0 ? (min / km).toFixed(2) : '', r.feel, r.pain, r.rpe, r.notes])
   }
   return csv(rows)
 }
@@ -127,6 +128,7 @@ export function parseImport(text: string): AppData {
     measurements: validateList('measurements', raw.measurements, ['date', 'kind', 'value']) as unknown as AppData['measurements'],
     recommendations: validateList('recommendations', raw.recommendations, ['slotId', 'status']) as unknown as AppData['recommendations'],
     customExercises: validateList('customExercises', raw.customExercises, ['name', 'metric']) as unknown as AppData['customExercises'],
+    benchmarks: validateList('benchmarks', raw.benchmarks, ['date']) as unknown as AppData['benchmarks'],
   }
 }
 
@@ -142,5 +144,6 @@ export async function applyImport(data: AppData) {
   await putRecords('measurements', data.measurements)
   await putRecords('recommendations', data.recommendations)
   await putRecords('customExercises', data.customExercises)
+  await putRecords('benchmarks', data.benchmarks)
   setState({ ...data, workouts: data.workouts.map((w) => (w.status === 'active' ? { ...w, status: 'ended' as const, runningSince: null } : w)), runs: data.runs.filter((r) => r.status === 'completed') })
 }

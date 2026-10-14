@@ -6,7 +6,8 @@ import { addManualRun } from '../lib/actions'
 import { dayKey } from '../lib/date'
 import { navigate, useRoute } from '../lib/router'
 import { useStore } from '../lib/store'
-import type { Feel, SessionType } from '../lib/types'
+import type { Feel, RunPain, SessionType } from '../lib/types'
+import { PainCheck } from '../components/Training'
 import { formatPace, toMeters } from '../lib/units'
 
 export function RunLog() {
@@ -24,6 +25,7 @@ export function RunLog() {
   const [feel, setFeel] = useState<Feel>('moderate')
   const [rpe, setRpe] = useState(5)
   const [notes, setNotes] = useState('')
+  const [pain, setPain] = useState<RunPain | undefined>(undefined)
 
   const totalSec = (hours ?? 0) * 3600 + (minutes ?? 0) * 60 + (seconds ?? 0)
   const meters = distance ? toMeters(distance, units) : 0
@@ -43,6 +45,7 @@ export function RunLog() {
       rpe,
       notes: notes.trim() || undefined,
       completedPlan: true,
+      pain,
     })
     toast(res.message ?? 'Run saved', 'accent')
     navigate(`/run/${res.run.id}`, { replace: true })
@@ -75,9 +78,23 @@ export function RunLog() {
         <Field label={`Distance (${units.distance})`} hint="Optional, but needed for pace">
           <NumberInput value={distance} onChange={setDistance} suffix={units.distance} placeholder="e.g. 5.0" ariaLabel="Distance" />
         </Field>
-        {pace && <p className="text-[15px] px-1">Average pace: <span className="num font-semibold">{formatPace(pace, units)}</span></p>}
+        {pace && (
+          <p className="text-[15px] px-1">
+            Average pace: <span className="num font-semibold">{formatPace(pace, units)}</span>
+          </p>
+        )}
+        <PainCheck value={pain} onChange={setPain} />
         <Field label="How did it feel?">
-          <Segmented value={feel} onChange={setFeel} size="lg" options={[{ value: 'easy', label: 'Easy' }, { value: 'moderate', label: 'Moderate' }, { value: 'hard', label: 'Difficult' }]} />
+          <Segmented
+            value={feel}
+            onChange={setFeel}
+            size="lg"
+            options={[
+              { value: 'easy', label: 'Easy' },
+              { value: 'moderate', label: 'Moderate' },
+              { value: 'hard', label: 'Difficult' },
+            ]}
+          />
         </Field>
         <div>
           <div className="flex justify-between mb-1 px-1">

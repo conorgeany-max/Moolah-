@@ -6,7 +6,7 @@ import { acceptRecommendation, dismissRecommendation, saveCheckIn, setOverride }
 import { dayKey, parseDay, WEEKDAY_LETTER } from '../lib/date'
 import { navigate } from '../lib/router'
 import { useStore } from '../lib/store'
-import type { CheckIn, Recommendation, SessionType } from '../lib/types'
+import type { CheckIn, Recommendation, RunPain, SessionType } from '../lib/types'
 import { Icon, type IconName } from './Icon'
 import { Badge, Button, Card, cx, Segmented, toast, type Tone } from './ui'
 
@@ -26,7 +26,14 @@ export function kindOf(t: SessionType | 'custom' | 'quick' | 'generated' | 'manu
 
 export function SessionIcon({ type, size = 40 }: { type: SessionType | 'custom' | 'quick' | 'generated' | 'manual' | 'free'; size?: number }) {
   const m = KIND_META[kindOf(type)]
-  const bg = { accent: 'bg-accent text-accent-ink', run: 'bg-run-soft text-run', warn: 'bg-warn-soft text-warn', calm: 'bg-calm-soft text-calm', neutral: 'bg-raised text-muted', danger: 'bg-danger-soft text-danger' }[m.tone]
+  const bg = {
+    accent: 'bg-accent text-accent-ink',
+    run: 'bg-run-soft text-run',
+    warn: 'bg-warn-soft text-warn',
+    calm: 'bg-calm-soft text-calm',
+    neutral: 'bg-raised text-muted',
+    danger: 'bg-danger-soft text-danger',
+  }[m.tone]
   return (
     <span className={cx('rounded-[12px] grid place-items-center shrink-0', bg)} style={{ width: size, height: size }}>
       <Icon name={m.icon} size={Math.round(size * 0.5)} strokeWidth={2} />
@@ -90,7 +97,9 @@ export function CheckInCard() {
     return (
       <Card className="p-4">
         <div className="flex items-center gap-3">
-          <span className={cx('w-10 h-10 rounded-[12px] grid place-items-center text-[20px]', r.level === 'good' ? 'bg-accent-soft' : r.level === 'ok' ? 'bg-raised' : 'bg-warn-soft')}>{FACES[existing.energy - 1]}</span>
+          <span className={cx('w-10 h-10 rounded-[12px] grid place-items-center text-[20px]', r.level === 'good' ? 'bg-accent-soft' : r.level === 'ok' ? 'bg-raised' : 'bg-warn-soft')}>
+            {FACES[existing.energy - 1]}
+          </span>
           <div className="flex-1">
             <div className="text-[15px] font-semibold">Readiness: {r.level === 'good' ? 'good' : r.level === 'ok' ? 'normal' : 'low'}</div>
             <div className="text-[13.5px] text-muted leading-snug">{r.advice}</div>
@@ -185,9 +194,7 @@ export function RecommendationCard({ rec }: { rec: Recommendation }) {
           <div className="flex items-center gap-2 flex-wrap">
             <Badge tone={up ? 'accent' : 'calm'}>{up ? 'Ready to progress' : 'Suggested adjustment'}</Badge>
           </div>
-          <div className="text-[16px] font-semibold mt-1.5 leading-snug">
-            {rec.kind === 'add-set' ? `${from?.name}: add a set` : `${from?.name} → ${to?.name}`}
-          </div>
+          <div className="text-[16px] font-semibold mt-1.5 leading-snug">{rec.kind === 'add-set' ? `${from?.name}: add a set` : `${from?.name} → ${to?.name}`}</div>
           <p className="text-[14px] text-muted mt-1 leading-relaxed">{rec.reason}</p>
         </div>
       </div>
@@ -216,4 +223,43 @@ export function sessionIntensity(t: SessionType, lighten: boolean, deload: boole
   if (t === 'rest' || t === 'mobility' || t === 'run-easy') return 'easy'
   if (t === 'run-long' || t === 'conditioning') return 'moderate'
   return lighten || deload ? 'moderate' : 'hard'
+}
+
+/** Post-run check of the areas running overloads first. Answering is optional. */
+export function PainCheck({ value, onChange }: { value: RunPain | undefined; onChange: (v: RunPain) => void }) {
+  const options: { v: RunPain; label: string; sub: string }[] = [
+    { v: 'none', label: 'None', sub: 'all good' },
+    { v: 'niggle', label: 'Niggle', sub: 'mild, eased off' },
+    { v: 'pain', label: 'Pain', sub: 'sharp or got worse' },
+  ]
+  return (
+    <div>
+      <div className="font-semibold text-[15px]">Any pain in shins, knees, Achilles or feet?</div>
+      <p className="text-[12.5px] text-muted mt-0.5 mb-2">Pain holds or steps back your running so small problems don’t become injuries.</p>
+      <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Pain after the run">
+        {options.map((o) => (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={value === o.v}
+            onClick={() => onChange(o.v)}
+            className={cx(
+              'press rounded-[14px] border px-1 py-2.5 text-center',
+              value === o.v
+                ? o.v === 'pain'
+                  ? 'bg-danger-soft border-danger text-danger'
+                  : o.v === 'niggle'
+                    ? 'bg-warn-soft border-warn'
+                    : 'bg-accent-soft border-accent-fg'
+                : 'bg-sunken border-line',
+            )}
+          >
+            <span className="block text-[14px] font-semibold leading-tight">{o.label}</span>
+            <span className="block text-[11px] text-muted mt-0.5 leading-tight">{o.sub}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }

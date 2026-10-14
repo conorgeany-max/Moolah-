@@ -1,7 +1,7 @@
 import { useSyncExternalStore, useRef } from 'react'
 import { registerCustomExercises } from '../engine/library'
 import { COLLECTIONS, loadEverything, requestPersistence } from './db'
-import type { AppData, CheckIn, Exercise, Measurement, Profile, Programme, Recommendation, Run, Settings, Workout } from './types'
+import type { AppData, Benchmark, CheckIn, Exercise, Measurement, Profile, Programme, Recommendation, Run, Settings, Workout } from './types'
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
@@ -33,6 +33,7 @@ const empty: State = {
   measurements: [],
   recommendations: [],
   customExercises: [],
+  benchmarks: [],
 }
 
 let state: State = empty
@@ -96,6 +97,7 @@ export async function initStore() {
       measurements: ((collections.measurements as Measurement[]) ?? []).sort(byDateDesc),
       recommendations: ((collections.recommendations as Recommendation[]) ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       customExercises: custom,
+      benchmarks: ((collections.benchmarks as Benchmark[]) ?? []).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
     })
     requestPersistence().then((persisted) => setState({ persisted }))
   } catch (e) {
